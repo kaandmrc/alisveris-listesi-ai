@@ -1,0 +1,9 @@
+/* 
+   Tailwind CSS is now used for styling. 
+   Custom styles are moved to index.html for simplicity in this Vanilla/CDN setup.
+*/
+ layer base {
+  img {
+    @apply inline-block;
+  }
+}

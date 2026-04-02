@@ -17,17 +17,18 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const listsRef = ref(db, 'shopping_lists');
+const apiKeyRef = ref(db, 'api_key');
 
 // --- State Management ---
 let state = {
     activeListId: null,
     lists: [],
-    apiKey: localStorage.getItem('gemini_api_key') || ''
+    apiKey: ''
 };
 
 function saveApiKey(key) {
     state.apiKey = key;
-    localStorage.setItem('gemini_api_key', key);
+    set(apiKeyRef, key); // Save to cloud instead of localStorage
 }
 
 // --- DOM Elements ---
@@ -78,11 +79,27 @@ window.toggleSidebar = () => {
 
 // --- Firebase Sync & Migration ---
 async function initializeData() {
-    // 1. Listen for real-time changes
+    // Listen for AI Key changes
+    onValue(apiKeyRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            state.apiKey = data;
+            if (apiKeyInput) apiKeyInput.value = data;
+        } else {
+            // Check if local key exists to migrate
+            const localKey = localStorage.getItem('gemini_api_key');
+            if (localKey) {
+                console.log("Migrating AI key to cloud...");
+                saveApiKey(localKey);
+                localStorage.removeItem('gemini_api_key');
+            }
+        }
+    });
+
+    // Listen for real-time list changes
     onValue(listsRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // Convert Firebase object to array of lists
             state.lists = Object.keys(data).map(key => ({
                 id: key,
                 ...data[key],
@@ -100,7 +117,6 @@ async function initializeData() {
             renderLists();
             renderItems();
         } else {
-            // Firebase is empty, check for migration
             migrateFromLocalStorage();
         }
     });
@@ -111,13 +127,10 @@ function migrateFromLocalStorage() {
     if (localData) {
         const parsed = JSON.parse(localData);
         if (parsed.length > 0) {
-            console.log("Migrating local data to Firebase...");
+            console.log("Migrating local lists to Firebase...");
             parsed.forEach(list => {
                 const newListRef = push(listsRef);
-                const listData = { 
-                    title: list.title, 
-                    items: {} 
-                };
+                const listData = { title: list.title, items: {} };
                 if (list.items) {
                     list.items.forEach(item => {
                         const itemKey = Date.now() + Math.random().toString(36).substr(2, 5);
@@ -131,7 +144,6 @@ function migrateFromLocalStorage() {
                 }
                 set(newListRef, listData);
             });
-            // Clear local storage after migration
             localStorage.removeItem('shopping_lists');
         }
     }
@@ -215,7 +227,6 @@ function renderItems() {
         li.className = `grid grid-cols-[35px_1fr_60px_60px_40px] md:grid-cols-[35px_1fr_100px_100px_40px] items-center h-[52px] py-1 border-b border-zinc-100 transition-all group ${
             item.done ? 'opacity-40' : ''
         }`;
-        // Note: Drag and drop would need complex handling in Firebase for arrays, keeping it simple for now
         li.dataset.id = item.id;
 
         li.innerHTML = `
@@ -293,7 +304,7 @@ window.updateItemValue = (itemId, field, value) => {
 // --- AI Action ---
 const MODEL_FALLBACKS = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-1.5-flash-8b'];
 async function handleAiScan(file) {
-    if (!state.apiKey) return alert("Lütfen API anahtarınızı girin.");
+    if (!state.apiKey) return alert("Hata: Paylaşımlı AI anahtarı bulunamadı. Lütfen ayarlardan bir anahtar tanımlayın.");
     aiReviewModal.classList.remove('hidden');
     loadingState.classList.remove('hidden');
     aiReviewContent.classList.add('hidden');
@@ -310,13 +321,14 @@ async function handleAiScan(file) {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [
-                        { text: "Analyze as shopping list JSON array with title, qty, brand." },
+                        { text: "Analyze this image and identify all items that could be part of a shopping list. Return ONLY a valid JSON array of objects, with each object having 'title', 'qty', and 'brand' keys. Use Turkish for titles if possible. No markdown, no triple backticks, just the raw JSON." },
                         { inline_data: { mime_type: file.type, data: base64Data } }
                     ]}] })
                 });
                 const data = await response.json();
                 if (data.error) continue;
-                const items = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim());
+                const text = data.candidates[0].content.parts[0].text;
+                const items = JSON.parse(text.replace(/```json|```/g, "").trim());
                 loadingState.classList.add('hidden');
                 aiReviewContent.classList.remove('hidden');
                 aiModalFooter.style.display = 'flex';

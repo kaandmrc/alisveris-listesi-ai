@@ -45,6 +45,20 @@ const listSearchInput = document.getElementById('list-search');
 const addItemForm = document.getElementById('add-item-form');
 const deleteListBtn = document.getElementById('delete-active-list-btn');
 
+// Modal Elements
+const modalOverlay = document.getElementById('modal-container');
+const modalInput = document.getElementById('modal-input');
+const modalCancel = document.getElementById('modal-cancel');
+const modalConfirm = document.getElementById('modal-confirm');
+
+// Settings Modal
+const settingsModal = document.getElementById('settings-modal');
+const openSettingsBtn = document.getElementById('open-settings-btn');
+const apiKeyInput = document.getElementById('api-key-input');
+const settingsSaveBtn = document.getElementById('settings-save');
+const settingsCancelBtn = document.getElementById('settings-cancel');
+
+// AI Review Modal
 const aiReviewModal = document.getElementById('ai-review-modal');
 const aiReviewContent = document.getElementById('ai-review-content');
 const aiReviewConfirmBtn = document.getElementById('ai-review-confirm');
@@ -133,8 +147,6 @@ async function compressImage(file, maxWidth = 1280) {
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            
-            // Return as Base64 JPEG with 0.7 quality
             resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
         };
     });
@@ -209,7 +221,7 @@ function renderItems() {
     });
 }
 
-// --- AI Review Render (Stacked) ---
+// --- AI Review Render ---
 let tempAiItems = [];
 function renderAiReview(items) {
     tempAiItems = items;
@@ -251,7 +263,7 @@ window.toggleItem = (itemId, event) => {
 window.deleteItem = (itemId) => remove(ref(db, `shopping_lists/${state.activeListId}/items/${itemId}`));
 window.updateItemValue = (itemId, field, value) => update(ref(db, `shopping_lists/${state.activeListId}/items/${itemId}`), { [field]: value });
 
-// --- AI Action (TURBO REFACTORED) ---
+// --- AI Action (TURBO) ---
 const MODEL_FALLBACKS = ['gemini-1.5-flash-8b', 'gemini-flash-latest', 'gemini-flash-lite-latest'];
 
 async function handleAiScan(file) {
@@ -261,17 +273,14 @@ async function handleAiScan(file) {
     aiReviewContent.classList.add('hidden');
     aiModalFooter.style.display = 'none';
     aiReviewContent.innerHTML = '';
-
     aiLoadingStatus.textContent = "Görüntü Hazırlanıyor...";
     aiLoadingDetail.textContent = "Mega Pikseller Sıkıştırılıyor...";
 
     try {
         const compressedBase64 = await compressImage(file);
-        
         for (let model of MODEL_FALLBACKS) {
             aiLoadingStatus.textContent = "Buluta Gönderiliyor...";
             aiLoadingDetail.textContent = `Model: ${model.split('-').pop()}`;
-            
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.apiKey}`, {
                     method: 'POST',
@@ -283,7 +292,6 @@ async function handleAiScan(file) {
                 });
                 const data = await response.json();
                 if (data.error) continue;
-                aiLoadingStatus.textContent = "Yanıt İşleniyor...";
                 const items = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim());
                 loadingState.classList.add('hidden');
                 aiReviewContent.classList.remove('hidden');
@@ -293,7 +301,6 @@ async function handleAiScan(file) {
             } catch (e) { console.error(`Model ${model} fail:`, e); }
         }
     } catch (e) {
-        console.error("Critical AI Error:", e);
         loadingState.classList.add('hidden');
         aiReviewContent.classList.remove('hidden');
         aiReviewContent.innerHTML = `<div class='text-center p-10 text-red-500 font-bold'>Hata: ${e.message}</div>`;
@@ -314,19 +321,27 @@ function addItem(title, qty, brand) {
 }
 
 // Event Listeners
-imageUploadInput.onchange = (e) => e.target.files[0] && handleAiScan(e.target.files[0]);
-aiReviewConfirmBtn.onclick = () => { tempAiItems.filter(i => i.selected).forEach(i => addItem(i.title, i.qty, i.brand)); aiReviewModal.classList.add('hidden'); };
-aiReviewCancelBtn.onclick = () => aiReviewModal.classList.add('hidden');
-openSettingsBtn.onclick = () => { apiKeyInput.value = state.apiKey; settingsModal.classList.remove('hidden'); };
-settingsSaveBtn.onclick = () => { saveApiKey(apiKeyInput.value.trim()); settingsModal.classList.add('hidden'); };
-settingsCancelBtn.onclick = () => settingsModal.classList.add('hidden');
-addListBtn.onclick = () => { modalOverlay.classList.remove('hidden'); modalInput.focus(); };
-modalCancel.onclick = () => { modalOverlay.classList.add('hidden'); modalInput.value = ''; };
-modalConfirm.onclick = () => { if (modalInput.value.trim()) { addList(modalInput.value.trim()); modalOverlay.classList.add('hidden'); modalInput.value = ''; } };
-addItemForm.onsubmit = (e) => { e.preventDefault(); addItem(document.getElementById('item-title').value, document.getElementById('item-quantity').value, document.getElementById('item-brand').value); addItemForm.reset(); };
-deleteListBtn.onclick = () => deleteListById(state.activeListId);
-listSearchInput.oninput = renderLists;
-activeListTitle.onblur = function() { if (state.activeListId) update(ref(db, `shopping_lists/${state.activeListId}`), { title: this.textContent.trim() }); };
-activeListTitle.onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), activeListTitle.blur());
+if (imageUploadInput) imageUploadInput.onchange = (e) => e.target.files[0] && handleAiScan(e.target.files[0]);
+if (aiReviewConfirmBtn) aiReviewConfirmBtn.onclick = () => { tempAiItems.filter(i => i.selected).forEach(i => addItem(i.title, i.qty, i.brand)); aiReviewModal.classList.add('hidden'); };
+if (aiReviewCancelBtn) aiReviewCancelBtn.onclick = () => aiReviewModal.classList.add('hidden');
+if (openSettingsBtn) openSettingsBtn.onclick = () => { apiKeyInput.value = state.apiKey; settingsModal.classList.remove('hidden'); };
+if (settingsSaveBtn) settingsSaveBtn.onclick = () => { saveApiKey(apiKeyInput.value.trim()); settingsModal.classList.add('hidden'); };
+if (settingsCancelBtn) settingsCancelBtn.onclick = () => settingsModal.classList.add('hidden');
+if (addListBtn) addListBtn.onclick = () => { modalOverlay.classList.remove('hidden'); modalInput.focus(); };
+if (modalCancel) modalCancel.onclick = () => { modalOverlay.classList.add('hidden'); modalInput.value = ''; };
+if (modalConfirm) modalConfirm.onclick = () => { if (modalInput.value.trim()) { addList(modalInput.value.trim()); modalOverlay.classList.add('hidden'); modalInput.value = ''; } };
+if (addItemForm) {
+    addItemForm.onsubmit = (e) => {
+        e.preventDefault();
+        addItem(document.getElementById('item-title').value, document.getElementById('item-quantity').value, document.getElementById('item-brand').value);
+        addItemForm.reset();
+    };
+}
+if (deleteListBtn) deleteListBtn.onclick = () => deleteListById(state.activeListId);
+if (listSearchInput) listSearchInput.oninput = renderLists;
+if (activeListTitle) {
+    activeListTitle.onblur = function() { if (state.activeListId) update(ref(db, `shopping_lists/${state.activeListId}`), { title: this.textContent.trim() }); };
+    activeListTitle.onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), activeListTitle.blur());
+}
 
 initializeData();

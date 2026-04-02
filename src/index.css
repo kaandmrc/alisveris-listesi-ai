@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: #ffffff;
+  color: #09090b;
+}
+
+/* Legacy Styles from Vanilla App */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 10px; }
+.dragging { opacity: 0.5; background: #f4f4f5; }
+.empty-lines-bg {
+    background-image: linear-gradient(to bottom, #f4f4f5 1px, transparent 1px);
+    background-size: 100% 48px;
+}
+.ai-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+#sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+@media (max-width: 768px) {
+    #sidebar.hidden-mobile { transform: translateX(-100%); }
+    #sidebar.visible-mobile { transform: translateX(0); }
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
